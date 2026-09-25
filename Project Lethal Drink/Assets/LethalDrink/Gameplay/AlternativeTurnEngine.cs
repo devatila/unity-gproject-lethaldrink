@@ -18,7 +18,7 @@ namespace LethalDrink.Gameplay
         internal AlternativeTurnEngine(MatchEngine engine)
         {
             match = engine;
-            CurrentPlayerId = engine.Config.StartingPlayerId;
+            CurrentPlayerId = engine.StartingPlayerId.Value;
         }
         internal ActionResult Validate(IGameAction action)
         {

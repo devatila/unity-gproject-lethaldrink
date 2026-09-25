@@ -16,6 +16,7 @@ namespace LethalDrink.Gameplay
         private readonly List<Exception> notificationErrors = new List<Exception>();
         private bool busy;
         private int nextCupId = 1, nextItemId = 1, nextTrayId = 1;
+        public int? StartingPlayerId { get; }
         public MatchConfig Config
         {
             get;
@@ -60,13 +61,16 @@ namespace LethalDrink.Gameplay
         public MatchEngine(MatchConfig config)
         {
             Config = config ?? throw new ArgumentNullException(nameof(config));
-            random = new Random(config.Seed);
+            random = new Random(config.Seed ?? Guid.NewGuid().GetHashCode());
             for (int id = 1; id <= config.PlayerCount; id++)
             {
                 players.Add(id, new PlayerState(id, "Player " + id, config.StartingLives));
                 knowledge.Add(id, new Dictionary<int, bool>());
             }
             Players = players.Values.ToList().AsReadOnly();
+            StartingPlayerId = config.Mode == GameMode.Collective
+                ? (int?)null
+                : config.StartingPlayerId ?? Players[random.Next(Players.Count)].PlayerId;
             CreateTray();
             pendingEvents.Clear();
             switch (config.Mode)
@@ -88,6 +92,57 @@ namespace LethalDrink.Gameplay
         public ItemState GetItem(int id) => items[id];
         internal CupState Cup(int id) => Tray.Cups.FirstOrDefault(c => c.CupId == id);
         internal bool Available(int id) => Cup(id) != null && !Cup(id).IsUsed;
+        internal int NextRandomIndex(int count) => random.Next(count);
+        // Called by the authoritative session clock, never by a player action.
+        public ActionResult AdvanceTime(double elapsedSeconds)
+        {
+            if (double.IsNaN(elapsedSeconds) || double.IsInfinity(elapsedSeconds) || elapsedSeconds < 0)
+                return Fail(ErrorCode.InvalidAction, "Tempo decorrido inválido.");
+            if (busy) return Fail(ErrorCode.Busy, "Operação em andamento.");
+            if (Status == MatchStatus.Ended) return Fail(ErrorCode.MatchEnded, "Partida encerrada.");
+            if (Collective == null) return Fail(ErrorCode.WrongMode, "Este modo não possui relógio coletivo.");
+            // Countdown alone does not invalidate an otherwise current gameplay revision.
+            if (!Collective.Elapse(elapsedSeconds)) return ActionResult.Ok();
+            busy = true;
+            pendingEvents.Clear();
+            notificationErrors.Clear();
+            try
+            {
+                int expiredTrayId = Tray.TrayId;
+                Emit(GameEventKind.RoundDeadlineExpired, value: Collective.RoundNumber);
+                do
+                {
+                    Collective.CompleteSelectionAutomatically();
+                    Collective.ResolveSelection();
+                }
+                while (Status == MatchStatus.Running && Tray.TrayId == expiredTrayId);
+                // New tray gets its full duration; a delayed frame never skips a newly presented tray.
+                Revision++;
+                Publish();
+                return ActionResult.Ok();
+            }
+            finally { pendingEvents.Clear(); busy = false; }
+        }
+        // Trusted host operation, not an action accepted from a player/client.
+        // Useful for debugging only the allocation step without resolving the drinks.
+        public ActionResult CompleteCollectiveSelection()
+        {
+            if (Collective == null) return Fail(ErrorCode.WrongMode, "Somente Collective possui seleção coletiva.");
+            if (busy) return Fail(ErrorCode.Busy, "Operação em andamento.");
+            if (Status == MatchStatus.Ended) return Fail(ErrorCode.MatchEnded, "Partida encerrada.");
+            if (Collective.AllReady) return ActionResult.Ok();
+            busy = true;
+            pendingEvents.Clear();
+            notificationErrors.Clear();
+            try
+            {
+                Collective.CompleteSelectionAutomatically();
+                Revision++;
+                Publish();
+                return ActionResult.Ok();
+            }
+            finally { pendingEvents.Clear(); busy = false; }
+        }
         public int? GetNextAlivePlayerId(int from, int? avoid = null)
         {
             int start = Players.ToList().FindIndex(p => p.PlayerId == from);
@@ -188,7 +243,11 @@ namespace LethalDrink.Gameplay
         }
         internal void RenewEmptyTray()
         {
-            if (Status == MatchStatus.Running && Tray.RemainingCount == 0)
+            RenewTrayIfInsufficient(1);
+        }
+        internal void RenewTrayIfInsufficient(int minimumCups)
+        {
+            if (Status == MatchStatus.Running && Tray.RemainingCount < minimumCups)
             {
                 Emit(GameEventKind.TrayEnded);
                 CreateTray();
@@ -215,8 +274,6 @@ namespace LethalDrink.Gameplay
                     if (!totals.ContainsKey(d.Player))
                         totals[d.Player] = 0;
                     totals[d.Player] += damage;
-                    if (Tray.PublicRemainingPoisons.HasValue)
-                        Tray.PublicRemainingPoisons--;
                 }
                 Emit(GameEventKind.CupDrunk, d.Player, cup: d.Cup.CupId, value: d.Cup.IsPoisoned ? 1 : 0);
             }
@@ -269,9 +326,7 @@ namespace LethalDrink.Gameplay
         internal void Purify(int cup)
         {
             var c = Cup(cup);
-            // Do not reveal whether poison was removed. Exact public count is now unknown.
-            if (!c.IsPurified)
-                Tray.PublicRemainingPoisons = null;
+            // The public label is the INITIAL count and never changes within this tray.
             c.IsPoisoned = false;
             c.IsPurified = true;
             foreach (var k in knowledge.Values)

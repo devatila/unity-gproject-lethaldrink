@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../Project Lethal Drink/Assets/LethalDrink/Core/**/*.cs" />
+    <Compile Include="../Project Lethal Drink/Assets/LethalDrink/Gameplay/**/*.cs" />
+  </ItemGroup>
+</Project>

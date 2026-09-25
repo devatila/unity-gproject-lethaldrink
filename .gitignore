@@ -104,3 +104,9 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# Standalone gameplay tests (hand-maintained projects)
+**/bin/
+**/obj/
+!Tests/LethalDrink.Core.csproj
+!Tests/LethalDrink.Tests.csproj

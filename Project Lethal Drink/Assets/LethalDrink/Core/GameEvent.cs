@@ -2,7 +2,7 @@ namespace LethalDrink.Core
 {
     public enum GameEventKind
     {
-        CupSelected, SelectionCancelled, CupOffered, ReactionEnded, CupDrunk, LivesChanged, PlayerEliminated, TurnStarted, TrayEnded, TrayStarted, ItemUsed, CupPurified, CupsSwapped, ReservationChanged, ReadyChanged, RoundLocked, RoundResolved, MatchEnded, DebugChanged
+        CupSelected, SelectionCancelled, CupOffered, ReactionEnded, CupDrunk, LivesChanged, PlayerEliminated, TurnStarted, TrayEnded, TrayStarted, ItemUsed, CupPurified, CupsSwapped, ReservationChanged, ReadyChanged, RoundLocked, RoundResolved, MatchEnded, DebugChanged, RoundDeadlineExpired
     }
     // Immutable historical facts; contains no inspection results or unrevealed poison.
     public sealed class GameEvent

@@ -42,11 +42,7 @@ namespace LethalDrink.Core
     }
     public enum CollectivePhase
     {
-        Selection, AwaitingTrayDecision, Ended
-    }
-    public enum RefusalSuccession
-    {
-        Undecided, ResolveAsOriginatorDrink
+        Selection, Ended
     }
     public enum SuddenDeathRule
     {
