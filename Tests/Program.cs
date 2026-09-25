@@ -25,7 +25,7 @@ internal static class Program
         catch (Exception ex) { failed++; Console.WriteLine("FAIL " + name + " | " + ex.Message); }
     }
     private static MatchEngine Match(GameMode mode = GameMode.Classic, int players = 4, int cups = 8, int poisons = 0, int lives = 3)
-        => new MatchEngine(new MatchConfig(mode, players, new[] { new TrayConfiguration(cups, poisons) }, seed: 12345, startingLives: lives, startingPlayerId: 1));
+        => new MatchEngine(new MatchConfig(mode, players, new[] { new TrayConfiguration(cups, poisons) }, seed: 12345, startingLives: lives, startingPlayerId: 1, collectiveTimerEnabled: true));
     private static int Give(MatchEngine m, int player, ItemType type)
     {
         Ok(m.DebugGiveItem(player, type));
@@ -177,6 +177,28 @@ internal static class Program
             Ok(m.AdvanceTime(1));
             Check(m.Tray.TrayId == 2 && m.Collective.RoundNumber == 2);
             Check(m.Collective.RemainingSeconds == 55 && m.Revision == 1);
+            Check(m.GetPublicView().CollectiveTimerEnabled && m.GetPublicView().CollectiveRemainingSeconds == 55);
+        });
+        Test("Disabled timer preserves choices and allows manual tray progression", () =>
+        {
+            var m = new MatchEngine(new MatchConfig(GameMode.Collective, 2, new[] { new TrayConfiguration(2, 0) }));
+            Check(!m.Config.CollectiveTimerEnabled && !m.GetPublicView().CollectiveTimerEnabled);
+            Check(m.GetPublicView().CollectiveRemainingSeconds == null);
+            ReserveReady(m, 1, 1);
+            long revision = m.Revision;
+            int events = 0;
+            m.EventOccurred += e => events++;
+            Ok(m.AdvanceTime(10000));
+            Check(m.Revision == revision && events == 0 && m.Tray.TrayId == 1);
+            Check(m.Collective.RemainingSeconds == 60 && m.Collective.ReservedCount(1) == 1 && m.Collective.IsReady(1));
+            Check(m.Tray.RemainingCount == 2 && m.Collective.ReservedCount(2) == 0);
+            Ok(m.CompleteCollectiveSelection());
+            Ok(m.ExecuteAction(new ResolveCollectiveRoundAction(1)));
+            Check(m.Tray.TrayId == 2);
+            revision = m.Revision;
+            events = 0;
+            Ok(m.AdvanceTime(10000));
+            Check(m.Revision == revision && events == 0 && m.Tray.TrayId == 2 && m.Collective.RemainingSeconds == 55);
         });
         Test("Deadline auto-resolves remaining selections until tray replacement", () =>
         {

@@ -101,6 +101,7 @@ namespace LethalDrink.Gameplay
             if (busy) return Fail(ErrorCode.Busy, "Operação em andamento.");
             if (Status == MatchStatus.Ended) return Fail(ErrorCode.MatchEnded, "Partida encerrada.");
             if (Collective == null) return Fail(ErrorCode.WrongMode, "Este modo não possui relógio coletivo.");
+            if (!Config.CollectiveTimerEnabled) return ActionResult.Ok();
             // Countdown alone does not invalidate an otherwise current gameplay revision.
             if (!Collective.Elapse(elapsedSeconds)) return ActionResult.Ok();
             busy = true;

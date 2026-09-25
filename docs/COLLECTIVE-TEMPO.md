@@ -2,6 +2,8 @@
 
 ## Regras confirmadas e implementadas
 
+- O temporizador é opcional: `collectiveTimerEnabled` / `CollectiveTimerEnabled`, desativado por padrão. No Inspector do GameManager, marque **Collective Timer Enabled** antes de criar a partida para ativar. Para mudar durante testes, altere a opção e use **Debug/Create Match** (reinicia a partida). A configuração da sessão é imutável.
+- Desativado, `AdvanceTime` não desconta tempo nem distribui ou resolve seleções automaticamente. Reserva, Ready, resolução manual, troca de bandeja e `CompleteCollectiveSelection` continuam disponíveis. A visão pública informa o temporizador desativado e tempo `null`; o debug mostra “desativado”. As regras de expiração abaixo se aplicam somente quando ativado.
 - Recusa força o ofertante a beber e segue a regra de Drink no Classic: seguro mantém iniciativa/cota; veneno passa ao próximo vivo; vitória encerra. Não há segunda janela de reação. Removidos `RefusalSuccession` e `testRefusalAsDrink`, que já não representam uma decisão aberta.
 - Uma **rodada é uma Bandeja**. Pode haver várias **seleções coletivas** (reservar, Ready, beber) dentro dela. `RoundNumber` corresponde ao ID da Bandeja e `SelectionNumber` identifica a seleção atual, começando em 1 a cada troca.
 - Prazo da Bandeja: `max(20, 60 - (rodada - 1) * 5)` segundos. Configurável em MatchConfig/GameManager. Resolver uma seleção sem trocar a Bandeja não reinicia o relógio.
@@ -48,11 +50,11 @@ Se um frame chega atrasado com um intervalo maior que o prazo restante, a Bandej
 
 ## Testes
 
-**52 cenários passaram, zero falhas**, com `dotnet run --project Tests/LethalDrink.Tests.csproj --no-restore`.
+**53 cenários passaram, zero falhas**, com `dotnet run --project Tests/LethalDrink.Tests.csproj --no-restore`. Incluem temporizador desativado por padrão, preservação de reservas/Ready sem eventos de tempo e progressão manual com troca de bandeja.
 
 Novos cenários verificam: exemplo 3+2 com quatro taças; primeira taça antes de extras; preservação de reservas; Ready invalidado após cancelamento; expiração em 60 segundos; resolução automática de várias seleções; relógio preservado na mesma Bandeja; redução até o piso de 20; mínimo de reposição; empate no timeout; RNG reproduzível; ausência de reentrância; rejeição de tempos NaN/infinito/negativo e mínimos impossíveis.
 
-O núcleo foi executado em .NET 10. Os componentes Unity ainda precisam de verificação no Editor. Esta revisão inclui os fontes e testes publicados junto deste documento.
+O núcleo foi executado em .NET 10. Os componentes Unity ainda precisam de verificação no Editor.
 
 ## Limites preservados
 

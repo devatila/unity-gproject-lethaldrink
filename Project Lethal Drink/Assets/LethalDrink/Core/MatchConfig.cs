@@ -79,6 +79,7 @@ namespace LethalDrink.Core
         }
         // Zero uses the alive-player count. A configured minimum can only increase it.
         public int CollectiveMinimumCups { get; }
+        public bool CollectiveTimerEnabled { get; }
         public double CollectiveInitialSeconds { get; }
         public double CollectiveReductionSeconds { get; }
         public double CollectiveMinimumSeconds { get; }
@@ -87,7 +88,8 @@ namespace LethalDrink.Core
             int maxCollectiveDrinks = 3, bool skipOfferOriginatorOnKill = true, bool restrictReturnInDuel = true,
             SuddenDeathRule suddenDeath = SuddenDeathRule.Disabled,
             IEnumerable<ItemType> itemPool = null, int collectiveMinimumCups = 0,
-            double collectiveInitialSeconds = 60, double collectiveReductionSeconds = 5, double collectiveMinimumSeconds = 20)
+            double collectiveInitialSeconds = 60, double collectiveReductionSeconds = 5, double collectiveMinimumSeconds = 20,
+            bool collectiveTimerEnabled = false)
         {
             if (!Enum.IsDefined(typeof(GameMode), mode) || playerCount < 2 || playerCount > 4 || startingLives < 1 || (startingPlayerId.HasValue && (startingPlayerId < 1 || startingPlayerId > playerCount)) || inventoryCapacity < 0 || proactiveQuota < 0 || maxCollectiveDrinks < 1)
                 throw new ArgumentException("Configuração inválida.");
@@ -125,6 +127,7 @@ namespace LethalDrink.Core
             Trays = list.AsReadOnly();
             ItemPool = pool.AsReadOnly();
             CollectiveMinimumCups = collectiveMinimumCups;
+            CollectiveTimerEnabled = collectiveTimerEnabled;
             CollectiveInitialSeconds = collectiveInitialSeconds;
             CollectiveReductionSeconds = collectiveReductionSeconds;
             CollectiveMinimumSeconds = collectiveMinimumSeconds;

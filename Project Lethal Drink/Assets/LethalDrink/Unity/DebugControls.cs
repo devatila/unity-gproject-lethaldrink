@@ -42,7 +42,7 @@ namespace LethalDrink.Unity
         {
             if (Engine == null) return; var v = Engine.GetPublicView();
             Debug.Log($"{v.Mode} {v.Status} rev={v.Revision} tray={v.TrayId} cups={v.RemainingCups} initialPoison={v.InitialPoisonCount} current={v.CurrentPlayerId} phase={v.ClassicPhase}/{v.CollectivePhase} pendingCup={v.PendingDrink?.CupId}");
-            if (v.Mode == GameMode.Collective) Debug.Log($"Rodada/Bandeja={v.RoundNumber} seleção={v.SelectionNumber} tempo={v.CollectiveRemainingSeconds:F1}s");
+            if (v.Mode == GameMode.Collective) Debug.Log($"Rodada/Bandeja={v.RoundNumber} seleção={v.SelectionNumber} tempo=" + (v.CollectiveTimerEnabled ? $"{v.CollectiveRemainingSeconds:F1}s" : "desativado"));
             foreach (var p in v.Players) Debug.Log($"P{p.PlayerId} lives={p.Lives} inventory=" + string.Join(",", p.Inventory.Select(i => i.ItemId + ":" + i.Type)));
             foreach (var c in v.Cups) Debug.Log($"Cup{c.CupId} position={c.Position} used={c.IsUsed} purified={c.IsPurified}");
         }

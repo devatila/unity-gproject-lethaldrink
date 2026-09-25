@@ -159,6 +159,7 @@ namespace LethalDrink.Gameplay
         }
         public int? SelectionNumber { get; }
         public double? CollectiveRemainingSeconds { get; }
+        public bool CollectiveTimerEnabled { get; }
         public IReadOnlyDictionary<int, int> Reservations
         {
             get;
@@ -193,7 +194,8 @@ namespace LethalDrink.Gameplay
             CollectivePhase = engine.Collective?.Phase;
             RoundNumber = engine.Collective?.RoundNumber;
             SelectionNumber = engine.Collective?.SelectionNumber;
-            CollectiveRemainingSeconds = engine.Collective?.RemainingSeconds;
+            CollectiveTimerEnabled = engine.Collective != null && engine.Config.CollectiveTimerEnabled;
+            CollectiveRemainingSeconds = CollectiveTimerEnabled ? engine.Collective.RemainingSeconds : (double?)null;
             var reservations = new Dictionary<int, int>();
             var required = new Dictionary<int, int>();
             var ready = new List<int>();
