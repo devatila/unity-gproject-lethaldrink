@@ -113,10 +113,6 @@ namespace LethalDrink.Gameplay
         {
             get;
         }
-        public int? RemainingPoisons
-        {
-            get;
-        }
         public ReadOnlyCollection<PlayerPublicView> Players
         {
             get;
@@ -161,6 +157,9 @@ namespace LethalDrink.Gameplay
         {
             get;
         }
+        public int? SelectionNumber { get; }
+        public double? CollectiveRemainingSeconds { get; }
+        public bool CollectiveTimerEnabled { get; }
         public IReadOnlyDictionary<int, int> Reservations
         {
             get;
@@ -183,7 +182,6 @@ namespace LethalDrink.Gameplay
             TrayId = engine.Tray.TrayId;
             InitialPoisonCount = engine.Tray.InitialPoisonCount;
             RemainingCups = engine.Tray.RemainingCount;
-            RemainingPoisons = engine.Tray.PublicRemainingPoisons;
             Players = engine.Players.Select(p => new PlayerPublicView(p, engine)).ToList().AsReadOnly();
             Cups = engine.Tray.Cups.Select(c => new CupView(c)).ToList().AsReadOnly();
             CurrentPlayerId = engine.Classic?.CurrentPlayerId ?? engine.Alternative?.CurrentPlayerId;
@@ -195,6 +193,9 @@ namespace LethalDrink.Gameplay
             ClassicPhase = engine.Classic?.Phase;
             CollectivePhase = engine.Collective?.Phase;
             RoundNumber = engine.Collective?.RoundNumber;
+            SelectionNumber = engine.Collective?.SelectionNumber;
+            CollectiveTimerEnabled = engine.Collective != null && engine.Config.CollectiveTimerEnabled;
+            CollectiveRemainingSeconds = CollectiveTimerEnabled ? engine.Collective.RemainingSeconds : (double?)null;
             var reservations = new Dictionary<int, int>();
             var required = new Dictionary<int, int>();
             var ready = new List<int>();

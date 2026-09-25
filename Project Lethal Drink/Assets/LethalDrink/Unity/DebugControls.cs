@@ -13,6 +13,7 @@ namespace LethalDrink.Unity
         [SerializeField] private int secondCupId = 2;
         [SerializeField] private int itemId = 1;
         [SerializeField] private int lives = 1;
+        [SerializeField] private float secondsToAdvance = 60;
         [SerializeField] private ItemType itemType = ItemType.Refusal;
         private MatchEngine Engine => GameManager.Instance == null ? null : GameManager.Instance.Engine;
         private void Send(IGameAction action) { if (GameManager.Instance == null) Debug.LogError("GameManager ausente."); else GameManager.Instance.ExecuteAction(action); }
@@ -29,14 +30,19 @@ namespace LethalDrink.Unity
         [ContextMenu("Collective/Cancel Reservation")] public void CancelReservation() => Send(new CancelReservationAction(actorId, cupId));
         [ContextMenu("Collective/Ready")] public void Ready() => Send(new SetReadyAction(actorId));
         [ContextMenu("Collective/Unready")] public void Unready() => Send(new SetReadyAction(actorId, false));
-        [ContextMenu("Collective/Resolve Round")] public void ResolveRound() => Send(new ResolveCollectiveRoundAction(actorId));
+        [ContextMenu("Collective/Resolve Selection")] public void ResolveRound() => Send(new ResolveCollectiveRoundAction(actorId));
+        [ContextMenu("Collective/Advance Time - HOST DEBUG ONLY")] public void AdvanceTime()
+        { if (Engine != null) Debug.Log(Engine.AdvanceTime(secondsToAdvance).ToString()); }
+        [ContextMenu("Collective/Auto Complete Selection - HOST DEBUG ONLY")] public void AutoCompleteSelection()
+        { if (Engine != null) Debug.Log(Engine.CompleteCollectiveSelection().ToString()); }
         [ContextMenu("Cheats/Give Item")] public void GiveItem() { if (Engine != null) Debug.Log(Engine.DebugGiveItem(actorId, itemType).ToString()); }
         [ContextMenu("Cheats/Force Lives")] public void ForcePlayerLives() { if (Engine != null) Debug.Log(Engine.DebugForceLives(actorId, lives).ToString()); }
         [ContextMenu("Cheats/Force Tray End")] public void ForceTrayEnd() { if (Engine != null) Debug.Log(Engine.DebugForceTrayEnd().ToString()); }
         [ContextMenu("State/Public")] public void PrintPublicState()
         {
             if (Engine == null) return; var v = Engine.GetPublicView();
-            Debug.Log($"{v.Mode} {v.Status} rev={v.Revision} tray={v.TrayId} cups={v.RemainingCups} initialPoison={v.InitialPoisonCount} remainingPoison={v.RemainingPoisons} current={v.CurrentPlayerId} phase={v.ClassicPhase}/{v.CollectivePhase} pendingCup={v.PendingDrink?.CupId}");
+            Debug.Log($"{v.Mode} {v.Status} rev={v.Revision} tray={v.TrayId} cups={v.RemainingCups} initialPoison={v.InitialPoisonCount} current={v.CurrentPlayerId} phase={v.ClassicPhase}/{v.CollectivePhase} pendingCup={v.PendingDrink?.CupId}");
+            if (v.Mode == GameMode.Collective) Debug.Log($"Rodada/Bandeja={v.RoundNumber} seleção={v.SelectionNumber} tempo=" + (v.CollectiveTimerEnabled ? $"{v.CollectiveRemainingSeconds:F1}s" : "desativado"));
             foreach (var p in v.Players) Debug.Log($"P{p.PlayerId} lives={p.Lives} inventory=" + string.Join(",", p.Inventory.Select(i => i.ItemId + ":" + i.Type)));
             foreach (var c in v.Cups) Debug.Log($"Cup{c.CupId} position={c.Position} used={c.IsUsed} purified={c.IsPurified}");
         }

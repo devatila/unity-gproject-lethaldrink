@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -13,7 +14,12 @@ namespace LethalDrink.Gameplay
         private readonly HashSet<int> ready = new HashSet<int>();
         private CollectivePhase phase;
         public CollectivePhase Phase => match.Status == MatchStatus.Ended ? CollectivePhase.Ended : phase;
-        public int RoundNumber { get; private set; } = 1;
+        public int RoundNumber => match.Tray.TrayId;
+        public int SelectionNumber { get; private set; } = 1;
+        private int selectionTrayId;
+        private int nextAutomaticSeat;
+        public double RemainingSeconds { get; private set; }
+        public double RoundDurationSeconds => match.Config.CollectiveDurationForRound(RoundNumber);
         public IReadOnlyDictionary<int, int> Reservations => new ReadOnlyDictionary<int, int>(reservations);
         internal CollectiveTurnEngine(MatchEngine engine)
         {
@@ -23,26 +29,33 @@ namespace LethalDrink.Gameplay
         public int RequiredDrinkCount(int player) => required.TryGetValue(player, out var count) ? count : 0;
         public bool IsReady(int player) => ready.Contains(player);
         public int ReservedCount(int player) => reservations.Values.Count(id => id == player);
-        public bool AllReady => match.Players.Where(p => p.IsAlive).All(p => ready.Contains(p.PlayerId) && ReservedCount(p.PlayerId) == required[p.PlayerId]);
+        public int FreeCupCount => match.Tray.RemainingCount - reservations.Count;
+        public bool HasSatisfiedSelection(int player) => match.IsPlayerAlive(player)
+            && (ReservedCount(player) == required[player] || FreeCupCount == 0);
+        public bool AllReady => match.Players.Where(p => p.IsAlive).All(p => ready.Contains(p.PlayerId) && HasSatisfiedSelection(p.PlayerId));
         private void StartRound()
         {
+            if (selectionTrayId != match.Tray.TrayId)
+            {
+                selectionTrayId = match.Tray.TrayId;
+                SelectionNumber = 1;
+                RemainingSeconds = RoundDurationSeconds;
+            }
             reservations.Clear();
             required.Clear();
             ready.Clear();
             foreach (var p in match.Players.Where(p => p.IsAlive))
                 required[p.PlayerId] = 1;
-            phase = match.Tray.RemainingCount < match.AliveCount ? CollectivePhase.AwaitingTrayDecision : CollectivePhase.Selection;
+            phase = CollectivePhase.Selection;
         }
         internal ActionResult Validate(IGameAction action)
         {
-            if (Phase == CollectivePhase.AwaitingTrayDecision)
-                return MatchEngine.Fail(ErrorCode.DesignPending, "Taças insuficientes: política de reposição Collective pendente. DebugForceTrayEnd permite laboratório.");
             int actor = action.ActorPlayerId;
             if (action is ResolveCollectiveRoundAction)
                 return AllReady ? ActionResult.Ok() : MatchEngine.Fail(ErrorCode.NotReady, "Todos devem estar prontos com suas taças.");
             if (action is SetReadyAction r)
             {
-                if (r.Ready && ReservedCount(actor) != required[actor])
+                if (r.Ready && !HasSatisfiedSelection(actor))
                     return MatchEngine.Fail(ErrorCode.NotReady, "Reserve a quantidade exigida.");
                 return ActionResult.Ok();
             }
@@ -65,8 +78,8 @@ namespace LethalDrink.Gameplay
                     return MatchEngine.Fail(ErrorCode.InvalidTarget, "Alvo eliminado/inexistente.");
                 if (ready.Contains(dd.TargetPlayerId))
                     return MatchEngine.Fail(ErrorCode.DesignPending, "Alteração de alvo Ready ainda não definida; retire Ready antes do teste.");
-                if (required[dd.TargetPlayerId] >= match.Config.MaxCollectiveDrinks || required.Values.Sum() + 1 > match.Tray.RemainingCount)
-                    return MatchEngine.Fail(ErrorCode.CapacityExceeded, "Limite de bebidas ou taças insuficientes para todos.");
+                if (required[dd.TargetPlayerId] >= match.Config.MaxCollectiveDrinks)
+                    return MatchEngine.Fail(ErrorCode.CapacityExceeded, "Limite de bebidas por jogador nesta seleção.");
                 type = ItemType.DoubleDrink;
             }
             else if (action is UseInspectionItemAction inspect)
@@ -107,6 +120,13 @@ namespace LethalDrink.Gameplay
             {
                 reservations.Remove(cancel.CupId);
                 match.Emit(GameEventKind.ReservationChanged, actor, cup: cancel.CupId, value: 0);
+                // A newly free cup may invalidate a Ready accepted only due to scarcity.
+                foreach (int player in ready.ToArray())
+                {
+                    if (HasSatisfiedSelection(player)) continue;
+                    ready.Remove(player);
+                    match.Emit(GameEventKind.ReadyChanged, player, value: 0);
+                }
             }
             else if (action is SetReadyAction r)
             {
@@ -118,21 +138,7 @@ namespace LethalDrink.Gameplay
             }
             else if (action is ResolveCollectiveRoundAction)
             {
-                match.Emit(GameEventKind.RoundLocked, value: RoundNumber);
-                var drinks = reservations.OrderBy(k => k.Value).ThenBy(k => k.Key).Select(k => new KeyValuePair<int, int>(k.Value, k.Key)).ToArray();
-                match.ResolveDrinks(drinks);
-                match.Emit(GameEventKind.RoundResolved, value: RoundNumber);
-                if (match.Status == MatchStatus.Running)
-                {
-                    match.RenewEmptyTray();
-                    RoundNumber++;
-                    StartRound();
-                }
-                else
-                {
-                    reservations.Clear();
-                    ready.Clear();
-                }
+                ResolveSelection();
             }
             else if (action is IItemAction item)
             {
@@ -150,6 +156,61 @@ namespace LethalDrink.Gameplay
         internal void ResetAfterDebug()
         {
             StartRound();
+        }
+        internal void ResolveSelection()
+        {
+            match.Emit(GameEventKind.RoundLocked, value: SelectionNumber);
+            var drinks = reservations.OrderBy(k => k.Value).ThenBy(k => k.Key)
+                .Select(k => new KeyValuePair<int, int>(k.Value, k.Key)).ToArray();
+            match.ResolveDrinks(drinks);
+            match.Emit(GameEventKind.RoundResolved, value: SelectionNumber);
+            if (match.Status == MatchStatus.Running)
+            {
+                match.RenewTrayIfInsufficient(Math.Max(match.AliveCount, match.Config.CollectiveMinimumCups));
+                SelectionNumber++;
+                StartRound();
+            }
+            else
+            {
+                reservations.Clear();
+                ready.Clear();
+            }
+        }
+        // Host-only operation used by the authoritative deadline.
+        // Preserve existing choices, assign random cups one per player per pass, then mark Ready.
+        // MatchEngine controls deadline expiry and resolution after completion.
+        internal void CompleteSelectionAutomatically()
+        {
+            var free = match.Tray.Cups.Where(c => !c.IsUsed && !reservations.ContainsKey(c.CupId)).Select(c => c.CupId).ToList();
+            while (free.Count > 0)
+            {
+                bool assigned = false;
+                bool needsFirstCup = match.Players.Any(p => p.IsAlive && ReservedCount(p.PlayerId) == 0);
+                for (int offset = 0; offset < match.Players.Count && free.Count > 0; offset++)
+                {
+                    int seat = (nextAutomaticSeat + offset) % match.Players.Count;
+                    int player = match.Players[seat].PlayerId;
+                    if (!match.IsPlayerAlive(player) || ReservedCount(player) >= required[player]) continue;
+                    if (needsFirstCup && ReservedCount(player) > 0) continue;
+                    int index = match.NextRandomIndex(free.Count);
+                    int cup = free[index];
+                    free.RemoveAt(index);
+                    reservations.Add(cup, player);
+                    match.Emit(GameEventKind.ReservationChanged, player, cup: cup, value: 1);
+                    assigned = true;
+                }
+                if (!assigned) break;
+            }
+            nextAutomaticSeat = (nextAutomaticSeat + 1) % match.Players.Count;
+            foreach (var player in match.Players.Where(p => p.IsAlive))
+            {
+                if (ready.Add(player.PlayerId)) match.Emit(GameEventKind.ReadyChanged, player.PlayerId, value: 1);
+            }
+        }
+        internal bool Elapse(double seconds)
+        {
+            RemainingSeconds = Math.Max(0, RemainingSeconds - seconds);
+            return RemainingSeconds == 0;
         }
     }
 }

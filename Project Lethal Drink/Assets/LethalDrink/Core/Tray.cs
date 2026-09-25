@@ -19,15 +19,10 @@ namespace LethalDrink.Core
             get;
         }
         public int RemainingCount => Cups.Count(c => !c.IsUsed);
-        public int? PublicRemainingPoisons
-        {
-            get; internal set;
-        }
         internal Tray(int id, int poisons, List<CupState> cups)
         {
             TrayId = id;
             InitialPoisonCount = poisons;
-            PublicRemainingPoisons = poisons;
             Cups = cups.AsReadOnly();
         }
     }

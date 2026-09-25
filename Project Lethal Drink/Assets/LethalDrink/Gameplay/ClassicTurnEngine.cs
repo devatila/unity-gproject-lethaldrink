@@ -56,7 +56,7 @@ namespace LethalDrink.Gameplay
         internal ClassicTurnEngine(MatchEngine engine)
         {
             match = engine;
-            CurrentPlayerId = engine.Config.StartingPlayerId;
+            CurrentPlayerId = engine.StartingPlayerId.Value;
         }
         public bool CanPlayerReact(int player) => Phase == ClassicPhase.Reaction && Pending.TargetId == player && match.IsPlayerAlive(player);
         internal ActionResult Validate(IGameAction action)
@@ -74,8 +74,6 @@ namespace LethalDrink.Gameplay
                     return MatchEngine.Fail(ErrorCode.ReactionNotAllowed, "Recusa exige oferta pendente.");
                 if (ReactiveItemUsed)
                     return MatchEngine.Fail(ErrorCode.DesignPending, "Combinar itens na mesma reação aguarda decisão; beber continua permitido.");
-                if (match.Config.RefusalSuccession == RefusalSuccession.Undecided)
-                    return MatchEngine.Fail(ErrorCode.DesignPending, "Configure a sucessão experimental após Recusa.");
                 return match.ValidateItem(refusal, ItemType.Refusal, ItemUsageTiming.Reactive, true);
             }
             if (action is UsePurifierAction purifier)
@@ -190,7 +188,7 @@ namespace LethalDrink.Gameplay
                 StartInitiative(match.GetNextAlivePlayerId(drinker).Value, null);
             else
             {
-                CannotOfferToPlayerId = null; /* Safe drink continues the same quota, including the explicit refusal test policy. */
+                CannotOfferToPlayerId = null; // Safe Drink, including forced Drink after Refusal, keeps the same initiative quota.
             }
             match.RenewEmptyTray();
         }

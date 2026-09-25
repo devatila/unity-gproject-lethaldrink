@@ -14,24 +14,46 @@ namespace LethalDrink.Unity
         [SerializeField] private int cupCount = 8;
         [SerializeField] private int poisonCount = 3;
         [SerializeField] private int seed = 12345;
+        [Tooltip("Ative para repetir o sorteio nos testes; desativado gera uma nova sequência por partida.")]
+        [SerializeField] private bool useFixedSeed = false;
+        [Tooltip("0 sorteia quem começa. 1–4 força um jogador apenas para testes.")]
+        [SerializeField] private int startingPlayerOverride = 0;
         [SerializeField] private bool autoCreate = true;
-        [Tooltip("Experimento: Recusa segura mantém ofertante; veneno passa ao próximo vivo. Não é design final.")]
-        [SerializeField] private bool testRefusalAsDrink = false;
+        [Tooltip("0 usa a quantidade de vivos; um valor maior antecipa a troca de Bandeja.")]
+        [SerializeField] private int collectiveMinimumCups = 0;
+        [Tooltip("Ativa o prazo e a distribuição automática no Collective. Altere antes de criar a partida.")]
+        [SerializeField] private bool collectiveTimerEnabled = false;
+        [SerializeField] private float collectiveInitialSeconds = 60;
+        [SerializeField] private float collectiveReductionSeconds = 5;
+        [SerializeField] private float collectiveMinimumSeconds = 20;
         public MatchEngine Engine { get; private set; }
         private void Awake() { if (Instance != null && Instance != this) { Destroy(gameObject); return; } Instance = this; }
         private void Start() { if (autoCreate) CreateDebugMatch(); }
+        private void Update()
+        {
+            if (Engine == null || Engine.Collective == null || !Engine.Config.CollectiveTimerEnabled || Engine.Status != MatchStatus.Running) return;
+            // Local authoritative session. Future NGO bridge must call this only on the host.
+            long previousRevision = Engine.Revision;
+            var result = Engine.AdvanceTime(Time.unscaledDeltaTime);
+            if (!result.Success) Debug.LogWarning(result.ToString());
+            if (Engine.Revision != previousRevision)
+                foreach (var error in Engine.NotificationErrors) Debug.LogError("Ouvinte falhou: " + error.Message);
+        }
         [ContextMenu("Debug/Create Match")]
         public void CreateDebugMatch()
         {
-            try { StartSession(new MatchConfig(mode, playerCount, new[] { new TrayConfiguration(cupCount, poisonCount) }, seed, startingLives,
-                refusalSuccession: testRefusalAsDrink ? RefusalSuccession.ResolveAsOriginatorDrink : RefusalSuccession.Undecided)); }
+            try { StartSession(new MatchConfig(mode, playerCount, new[] { new TrayConfiguration(cupCount, poisonCount) }, useFixedSeed ? (int?)seed : null, startingLives,
+                startingPlayerId: startingPlayerOverride == 0 ? (int?)null : startingPlayerOverride,
+                collectiveMinimumCups: collectiveMinimumCups, collectiveInitialSeconds: collectiveInitialSeconds,
+                collectiveReductionSeconds: collectiveReductionSeconds, collectiveMinimumSeconds: collectiveMinimumSeconds,
+                collectiveTimerEnabled: collectiveTimerEnabled)); }
             catch (ArgumentException ex) { Debug.LogError(ex.Message); }
         }
         public void StartSession(MatchConfig config)
         {
             var replacement = new MatchEngine(config);
             Unsubscribe(); Engine = replacement; Engine.EventOccurred += HandleEvent;
-            Debug.Log("Sessão criada: " + config.Mode);
+            Debug.Log("Sessão criada: " + config.Mode + ". Primeiro jogador: " + (Engine.StartingPlayerId?.ToString() ?? "todos (Collective)"));
         }
         public ActionResult ExecuteAction(IGameAction action)
         {
